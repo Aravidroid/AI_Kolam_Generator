@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kolam AI - Unified Viewer + AR</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="kolam-ai-unified">
+        <header>
+            <h1>Kolam AI 🎨</h1>
+            <p>Classify, Generate, Recreate, Learn & View in AR</p>
+        </header>
+
+        <main id="main-content">
+            <div id="canvas-container" class="panel">
+                <svg id="kolamCanvas" viewBox="0 0 200 200" xmlns="http://www.w.org/2000/svg"></svg>
+                <canvas id="previewCanvas" width="200" height="200" style="display:none;"></canvas>
+            </div>
+
+            <div id="ui-container">
+                <div class="control-panel">
+                    <h3>Classify & Recreate</h3>
+                    <input type="file" id="image-upload" accept="image/*">
+                    <div class="button-row">
+                        <button id="upload-preview-btn">Preview</button>
+                        <button id="classify-btn">Classify Kolam</button>
+                        <button id="recreate-btn">Recreate Kolam</button>
+                        <button id="speed-up-btn" style="display: none;">Speed Up (1x)</button>
+                        <button id="ar-btn" title="Place current kolam in AR">AR View</button>
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Generate New</h3>
+                    <div class="select-group">
+                        <select id="kolam-type">
+                            <option value="sikku">Sikku</option>
+                            <option value="pulli">Pulli</option>
+                            <option value="kambi">Kambi</option>
+                        </select>
+                        <select id="kolam-complexity">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                    <button id="generate-btn">Generate New</button>
+                </div>
+
+                <div class="control-panel" id="teach-panel">
+                    <h3>Learn to Draw</h3>
+                    <button id="teach-btn">Teach Me</button>
+                    <div id="teach-controls" style="display: none;">
+                        <p id="instruction-text">Instruction will appear here.</p>
+                        <div class="button-group">
+                            <button id="prev-step-btn">◀ Previous</button>
+                            <button id="next-step-btn">Next ▶</button>
+                            <button id="autoplay-btn">Auto Play</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="stepsList-container" class="panel" style="display: none;">
+                    <h3>Recreation Steps</h3>
+                    <ol id="stepsList"></ol>
+                </div>
+
+                <div id="api-response" class="panel">
+                    <pre>API responses will show here...</pre>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="ar-container" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999;"></div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <script type="module">
+      const arBtn = document.getElementById('ar-btn');
+      const arContainer = document.getElementById('ar-container');
+
+      arBtn.addEventListener('click', async () => {
+        arContainer.style.display = 'block';
+        try {
+          const mod = await import('{{ url_for("static", filename="ar.js") }}');
+          const dataUrl = window.currentImageDataURL || null;
+          mod.startAR(dataUrl);
+        } catch (err) {
+          console.error('Failed to load AR module', err);
+          alert('AR module failed to load. See console for details.');
+          arContainer.style.display = 'none';
+        }
+      });
+    </script>
+</body>
+</html>

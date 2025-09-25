@@ -16,7 +16,7 @@ from PIL import Image
 # --- SciPy for Smoothing ---
 from scipy.interpolate import splprep, splev
 
-# --- Imports for Background Removal ---
+# --- Imports for Background Removal (Used for Classification only) ---
 import io
 from rembg import remove
 
@@ -96,65 +96,48 @@ infer_transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-# ----------------- Background Removal Function ----------------- #
+# ----------------- Background Removal Function (For Classification) ----------------- #
 def remove_background(img_path):
-    """
-    Uses rembg to remove the background and returns a clean OpenCV image.
-    This version pastes the kolam onto a BLACK background for high contrast.
-    """
     try:
         with open(img_path, 'rb') as f:
             input_bytes = f.read()
         
         output_bytes = remove(input_bytes)
-        
         img_bg_removed = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
         
-        # ✅ --- THIS IS THE CORRECTED LINE ---
-        # It creates a black background to ensure high contrast for all images.
-        black_bg = Image.new("RGBA", img_bg_removed.size, "BLACK")
+        white_bg = Image.new("RGBA", img_bg_removed.size, "WHITE")
+        white_bg.paste(img_bg_removed, (0, 0), img_bg_removed)
         
-        # Paste the foreground (the kolam) onto the black background
-        black_bg.paste(img_bg_removed, (0, 0), img_bg_removed)
-        
-        # Convert from PIL (RGB) to OpenCV (BGR) format
-        clean_img_rgb = black_bg.convert('RGB')
-        clean_img_cv = cv2.cvtColor(np.array(clean_img_rgb), cv2.COLOR_RGB2BGR)
-        return clean_img_cv
+        clean_img_rgb = white_bg.convert('RGB')
+        return cv2.cvtColor(np.array(clean_img_rgb), cv2.COLOR_RGB2BGR)
     except Exception as e:
         print(f"--- Background removal failed: {e}. Falling back to original image. ---")
-        return cv2.imread(img_path) # Fallback to original if rembg fails
+        return cv2.imread(img_path)
 
 
 # ----------------- Kolam Analysis Pipeline ----------------- #
-# In app.py, replace the existing analyze_cleaned_image function with this corrected version.
 
 def analyze_cleaned_image(img, min_points=30):
-    """
-    Analyzes a pre-cleaned OpenCV image object to find kolam contours and dots.
-    (This version uses a simple global threshold for more robust line detection).
-    """
     if img is None:
         raise ValueError("Input image to analysis is None.")
         
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # --- ✅ NEW: Simplified and More Robust Line Detection ---
-    # Since rembg provides a high-contrast image (light lines on a dark background),
-    # a simple global threshold is more effective than the complex adaptive one.
-    # This treats any pixel with a value greater than 10 (i.e., not black) as part of a line.
-    _, binary = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
+    # Create an inverted binary image for line/skeleton detection (white lines on black background)
+    _, binary_for_lines = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
     
-    # The 'binary' image now has white lines on a black background, which is perfect
-    # for the thinning algorithm that follows.
+    skeleton = cv2.ximgproc.thinning(binary_for_lines)
     
-    skeleton = cv2.ximgproc.thinning(binary)
-    contours, _ = cv2.findContours(skeleton, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    # Find all separate lines in the kolam
+    contours, _ = cv2.findContours(skeleton, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     contours = [c for c in contours if len(c) > min_points]
     
-    # --- Dot detection (remains the same) ---
+    # --- ✅ DOT DETECTION FIX ---
+    # The SimpleBlobDetector finds DARK blobs on a LIGHT background by default.
+    # We must create a NON-inverted binary image for it to work correctly.
+    _, binary_for_dots = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    
     dots = []
-
     params = cv2.SimpleBlobDetector_Params()
     params.filterByArea = True
     params.minArea = 15
@@ -167,20 +150,25 @@ def analyze_cleaned_image(img, min_points=30):
     
     detector = cv2.SimpleBlobDetector_create(params)
     
-    keypoints = detector.detect(cv2.bitwise_not(gray))
+    # Detect blobs (dots) on the correct binary image
+    keypoints = detector.detect(binary_for_dots)
     
     for kp in keypoints:
         dots.append((int(kp.pt[0]), int(kp.pt[1])))
         
     return contours, img.shape, dots
 
-def smooth_contour(contour, smooth_factor=2):
+def smooth_contour(contour, is_closed=True):
     contour = contour[:,0,:]
     if len(contour) < 4: return contour.reshape(-1,1,2)
+    
     x, y = contour[:,0], contour[:,1]
+    smoothing_factor = len(contour) * 0.1 
+    
     try:
-        tck, u = splprep([x, y], s=smooth_factor, per=1)
-        u_new = np.linspace(0, 1, len(x)*3)
+        tck, u = splprep([x, y], s=smoothing_factor, per=is_closed)
+        num_points = max(len(x) * 2, 200) 
+        u_new = np.linspace(0, 1, num_points)
         x_new, y_new = splev(u_new, tck)
         return np.stack([x_new, y_new], axis=-1).reshape(-1,1,2).astype(np.int32)
     except:
@@ -201,9 +189,11 @@ def center_and_scale(contours, dots, img_shape, viewbox_size=200):
     shape_w, shape_h = x_max - x_min, y_max - y_min
     if shape_w == 0 or shape_h == 0: return [], []
     
-    scale = viewbox_size / max(shape_w, shape_h)
-    padding_x = (viewbox_size - shape_w * scale) / 2
-    padding_y = (viewbox_size - shape_h * scale) / 2
+    scale = viewbox_size / (max(shape_w, shape_h) * 1.1)
+    
+    new_w, new_h = shape_w * scale, shape_h * scale
+    padding_x = (viewbox_size - new_w) / 2
+    padding_y = (viewbox_size - new_h) / 2
 
     scaled_contours = [(((c.reshape(-1,2) - np.array([x_min, y_min])) * scale) + np.array([padding_x, padding_y])) for c in contours]
     scaled_dots = [(((np.array(d) - np.array([x_min, y_min])) * scale) + np.array([padding_x, padding_y])) for d in dots]
@@ -222,6 +212,7 @@ def index(): return render_template('index.html')
 
 @app.route('/classify', methods=['POST'])
 def classify_kolam():
+    # This route remains unchanged
     if not model: return jsonify({"status": "error", "message": "AI model is not loaded."}), 500
     if 'file' not in request.files: return jsonify({"status": "error", "message": "No file part"}), 400
     file = request.files['file']
@@ -253,39 +244,46 @@ def recreate_kolam():
     file.save(filepath)
 
     try:
-        # --- UPDATED WORKFLOW ---
-        # 1. Remove background and place on a black canvas
-        cleaned_cv_image = remove_background(filepath)
-        
-        # 2. Analyze the cleaned image object
-        contours, img_shape, dots = analyze_cleaned_image(cleaned_cv_image)
+        uploaded_image = cv2.imread(filepath)
+        if uploaded_image is None:
+            raise ValueError("Could not read the uploaded image.")
 
-        # 3. The rest of the process is the same
+        contours, img_shape, dots = analyze_cleaned_image(uploaded_image)
+        
         smooth_contours = [smooth_contour(c) for c in contours]
         scaled_contours, scaled_dots = center_and_scale(smooth_contours, dots, img_shape)
         
-        svg_elements = []
+        all_paths = []
         for contour in scaled_contours:
-            points_str = " ".join([f"{p[0]:.2f},{p[1]:.2f}" for p in contour])
+            if contour is not None and contour.size > 0:
+                path_points = [{"x": round(p[0], 2), "y": round(p[1], 2)} for p in contour.reshape(-1, 2)]
+                all_paths.append(path_points)
+        
+        formatted_dots = [{"x": round(d[0], 2), "y": round(d[1], 2)} for d in scaled_dots]
+
+        svg_elements = []
+        for path in all_paths:
+            points_str = " ".join([f"{p['x']},{p['y']}" for p in path])
             svg_elements.append(f'<polyline points="{points_str}" stroke="black" fill="none" stroke-width="2"/>')
-        for dot in scaled_dots:
-            svg_elements.append(f'<circle cx="{dot[0]:.2f}" cy="{dot[1]:.2f}" r="4" fill="black"/>')
+        for dot in formatted_dots:
+            svg_elements.append(f'<circle cx="{dot["x"]}" cy="{dot["y"]}" r="3" fill="black"/>')
         svg_content = "\n".join(svg_elements)
 
-        all_strokes = []
-        if scaled_contours:
-            all_points = np.vstack([c.reshape(-1,2) for c in scaled_contours if c is not None and c.size > 0])
-            all_strokes = [{"x": round(p[0], 2), "y": round(p[1], 2), "z": 0} for p in all_points]
-
-        result = { "svg_content": svg_content, "strokes": all_strokes }
+        result = { 
+            "svg_content": svg_content, 
+            "paths": all_paths,
+            "dots": formatted_dots
+        }
         return jsonify({"status": "success", "data": result})
 
     except Exception as e:
+        app.logger.error(f"Recreation error: {e}", exc_info=True)
         if os.path.exists(filepath): os.remove(filepath)
         return jsonify({"status": "error", "message": f"Recreation error: {e}"}), 500
 
 @app.route('/generate', methods=['POST'])
 def generate_kolam():
+    # This route remains unchanged
     data = request.get_json() or {}
     kolam_type, complexity = data.get("type", "sikku").lower(), data.get("complexity", "easy").lower()
     level = {"easy": 3, "medium": 5, "hard": 7}.get(complexity, 3)
@@ -312,6 +310,7 @@ def generate_kolam():
 
 @app.route('/api/teach', methods=['GET'])
 def get_teaching_steps():
+    # This route remains unchanged
     teach_data = {"total_steps": 3, "steps": [{"step": 1, "instruction": "Start by drawing the central loop.", "path": [{"x": 0.5, "y": 0.8}, {"x": 0.65, "y": 0.65}, {"x": 0.5, "y": 0.5}, {"x": 0.35, "y": 0.65}, {"x": 0.5, "y": 0.8}]}, {"step": 2, "instruction": "Draw the top-left outer loop.", "path": [{"x": 0.35, "y": 0.65}, {"x": 0.2, "y": 0.8}, {"x": 0.2, "y": 0.9}, {"x": 0.3, "y": 0.95}, {"x": 0.4, "y": 0.9}, {"x": 0.35, "y": 0.65}]}, {"step": 3, "instruction": "Finally, add the bottom-right petal.", "path": [{"x": 0.65, "y": 0.65}, {"x": 0.8, "y": 0.5}, {"x": 0.65, "y": 0.35}, {"x": 0.5, "y": 0.5}]}]}
     return jsonify({"status": "success", "data": teach_data})
 

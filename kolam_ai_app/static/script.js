@@ -1,13 +1,10 @@
-// main UI script (non-module, browser-friendly)
-// Updated with speed controls for the recreation animation.
-
 const classifyBtn = document.getElementById('classify-btn');
 const recreateBtn = document.getElementById('recreate-btn');
 const generateBtn = document.getElementById('generate-btn');
 const teachBtn = document.getElementById('teach-btn');
 const uploadPreviewBtn = document.getElementById('upload-preview-btn');
 const arBtn = document.getElementById('ar-btn');
-const speedUpBtn = document.getElementById('speed-up-btn'); // ✅ Get the new button
+const speedUpBtn = document.getElementById('speed-up-btn');
 
 const fileInput = document.getElementById('image-upload');
 const responseDiv = document.getElementById('api-response');
@@ -25,7 +22,7 @@ let currentStep = 0;
 let autoPlayInterval = null;
 let isAutoPlaying = false;
 
-// ✅ State variables for animation speed
+// State variables for animation speed
 let animationSpeed = 1;
 const speedLevels = [1, 2, 4, 8];
 
@@ -68,7 +65,7 @@ function snapshotCurrentKolamToDataURL() {
     });
 }
 
-// ✅ Event listener to cycle through speeds
+// Event listener to cycle through speeds
 speedUpBtn.addEventListener('click', () => {
     const currentIndex = speedLevels.indexOf(animationSpeed);
     const nextIndex = (currentIndex + 1) % speedLevels.length; // Loop back to the start
@@ -127,17 +124,17 @@ classifyBtn.addEventListener('click', async () => {
 });
 
 
-// 🎨 RECREATE ENDPOINT (UPDATED TO MANAGE SPEED BUTTON) 🎨
+// 🎨 RECREATE ENDPOINT (UPDATED FOR CORRECT MULTI-PATH ANIMATION) 🎨
 recreateBtn.addEventListener('click', async () => {
     if (!fileInput.files || fileInput.files.length === 0) {
         updateResponse({ error: 'Please choose a file before recreating.' });
         return;
     }
 
-    // ✅ Setup UI for animation
+    // Setup UI for animation
     animationSpeed = 1;
     speedUpBtn.textContent = `Speed Up (1x)`;
-    speedUpBtn.style.display = 'inline-block'; // Show the button
+    speedUpBtn.style.display = 'inline-block'; // Show the speed button
 
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
@@ -149,20 +146,26 @@ recreateBtn.addEventListener('click', async () => {
             updateResponse(result);
             return;
         }
-        updateResponse(result.data);
+        updateResponse({ // Show a cleaner summary
+            message: "Recreation data received.",
+            dots_found: result.data.dots.length,
+            paths_found: result.data.paths.length
+        });
 
-        await animateRecreation(result.data.strokes, result.data.svg_content);
+        // ✅ Call the new, more powerful animation function
+        await animateRecreation(result.data.paths, result.data.dots, result.data.svg_content);
         
+        // Update the AR image and steps list after animation
         window.currentImageDataURL = await snapshotCurrentKolamToDataURL();
 
         const stepsListContainer = document.getElementById('stepsList-container');
         const stepsList = document.getElementById('stepsList');
         stepsListContainer.style.display = 'block';
         stepsList.innerHTML = '';
-        if (result.data.strokes && result.data.strokes.length) {
-            result.data.strokes.forEach((s, idx) => {
+        if (result.data.paths && result.data.paths.length) {
+            result.data.paths.forEach((path, idx) => {
                 const li = document.createElement('li');
-                li.textContent = `Stroke ${idx + 1}: x=${s.x}, y=${s.y}, z=${s.z}`;
+                li.textContent = `Path ${idx + 1}: ${path.length} points`;
                 stepsList.appendChild(li);
             });
         }
@@ -170,56 +173,89 @@ recreateBtn.addEventListener('click', async () => {
         updateResponse({ error: 'Failed to call recreate endpoint.' });
         console.error(e);
     } finally {
-        // ✅ Hide the button when animation is done or fails
-        speedUpBtn.style.display = 'none';
+        speedUpBtn.style.display = 'none'; // Hide speed button when done
     }
 });
 
 /**
- * ✅ ANIMATION FUNCTION (UPDATED FOR SPEED) ✅
- * Animates drawing by adding multiple points per frame based on animationSpeed.
+ * ✅ NEW AND IMPROVED ANIMATION FUNCTION ✅
+ * Animates drawing by drawing dots first, then each path sequentially.
+ * Incorporates the animationSpeed variable.
  */
-function animateRecreation(strokes, finalSVGContent) {
+function animateRecreation(paths, dots, finalSVGContent) {
     return new Promise(resolve => {
-        kolamCanvas.innerHTML = '';
+        kolamCanvas.innerHTML = ''; // Clear the canvas
 
-        if (!strokes || strokes.length === 0) {
-            kolamCanvas.innerHTML = finalSVGContent;
-            resolve();
+        // 1. Draw all dots instantly
+        dots.forEach(dot => {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', dot.x);
+            circle.setAttribute('cy', dot.y);
+            circle.setAttribute('r', '3'); // A bit bigger for visibility
+            circle.setAttribute('fill', 'black');
+            kolamCanvas.appendChild(circle);
+        });
+
+        if (!paths || paths.length === 0) {
+            resolve(); // Nothing to animate
             return;
         }
 
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('stroke', 'black');
-        path.setAttribute('stroke-width', '2');
-        path.setAttribute('fill', 'none');
-        kolamCanvas.appendChild(path);
+        let currentPathIndex = 0;
 
-        let i = 0;
-        let pathData = `M ${strokes[0].x.toFixed(2)} ${strokes[0].y.toFixed(2)}`;
-        
-        function drawStep() {
-            // ✅ Draw multiple segments per frame based on speed
-            for (let j = 0; j < animationSpeed && i < strokes.length - 1; j++) {
-                i++;
-                const point = strokes[i];
-                pathData += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-            }
-
-            path.setAttribute('d', pathData);
-
-            if (i < strokes.length - 1) {
-                requestAnimationFrame(drawStep); // Continue animation
-            } else {
-                // Animation finished, render the final perfect SVG
+        function animateNextPath() {
+            if (currentPathIndex >= paths.length) {
+                // Animation finished, render the final perfect SVG to ensure quality
                 kolamCanvas.innerHTML = finalSVGContent;
                 resolve();
+                return;
             }
+
+            const currentPoints = paths[currentPathIndex];
+            if (currentPoints.length < 2) {
+                // Path is too short, skip and move to the next one
+                currentPathIndex++;
+                animateNextPath();
+                return;
+            }
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('stroke', '#d15c32'); // Use primary color for drawing
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            kolamCanvas.appendChild(path);
+
+            let pointIndex = 0;
+            let pathData = `M ${currentPoints[0].x.toFixed(2)} ${currentPoints[0].y.toFixed(2)}`;
+            
+            function drawStep() {
+                // Draw multiple segments per frame based on speed
+                for (let j = 0; j < animationSpeed && pointIndex < currentPoints.length - 1; j++) {
+                    pointIndex++;
+                    const point = currentPoints[pointIndex];
+                    pathData += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+                }
+                
+                path.setAttribute('d', pathData);
+
+                if (pointIndex < currentPoints.length - 1) {
+                    requestAnimationFrame(drawStep); // Continue animating this path
+                } else {
+                    // Finished this path, move to the next one
+                    currentPathIndex++;
+                    animateNextPath();
+                }
+            }
+            
+            drawStep();
         }
         
-        drawStep();
+        // Start the animation with the first path
+        animateNextPath();
     });
 }
+
 
 generateBtn.addEventListener('click', async () => {
     const type = document.getElementById('kolam-type').value;

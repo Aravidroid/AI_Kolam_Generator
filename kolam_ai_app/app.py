@@ -1,4 +1,5 @@
 import os
+import io
 import uuid
 import json
 import math
@@ -14,11 +15,8 @@ from torchvision import models, transforms
 from PIL import Image
 
 # --- SciPy for Smoothing ---
-from scipy.interpolate import splprep, splev
+from scipy.interpolate import splprep, splev
 
-# --- Imports for Background Removal (Used for Classification only) ---
-import io
-from rembg import remove
 
 
 app = Flask(__name__, template_folder='templates', static_folder='static')

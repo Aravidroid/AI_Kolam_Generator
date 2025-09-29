@@ -1,8 +1,10 @@
 Flask
 gunicorn
 numpy
-opencv-python-headless
+opencv-contrib-python-headless
 torch
 torchvision
 Pillow
 scipy
+rembg
+onnxruntime

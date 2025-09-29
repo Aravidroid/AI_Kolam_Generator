@@ -1,21 +1,19 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Set the working directory in the container
-WORKDIR /app
+# Set the working directory to the sub-folder
+WORKDIR /app/kolam_ai_app
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Copy requirements from the sub-folder
+COPY kolam_ai_app/requirements.txt .
 
-# Install system dependencies needed by OpenCV
+# Install system dependencies
 RUN apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code into the container
-COPY . .
+# Copy the rest of your application code from the sub-folder
+COPY kolam_ai_app/ .
 
-# Define the command to run your app using Gunicorn
-
+# Define the command to run your app
 CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "app:app"]

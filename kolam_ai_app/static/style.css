@@ -1,0 +1,292 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&family=Pacifico&display=swap');
+
+/* Root variables for colors & transitions */
+:root {
+    --primary-color: #FF9A8B; /* Peachy pink */
+    --secondary-color: #FAD0C4; /* Light pastel peach */
+    --accent-color: #FFD3B6; /* Soft orange */
+    --highlight-color: #FF6F61; /* Vibrant accent */
+    --bg-color: #FFF8F0; /* Summer light background */
+    --panel-bg: rgba(255, 255, 255, 0.6);
+    --shadow-color: rgba(0,0,0,0.1);
+    --transition-speed: 0.3s;
+}
+
+/* Reset & body */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Montserrat', sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #FFD3B6 0%, #FF9A8B 100%);
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem;
+}
+
+/* Main container */
+#kolam-ai-unified {
+    background-color: var(--bg-color);
+    border-radius: 20px;
+    box-shadow: 0 10px 25px var(--shadow-color);
+    width: 95%;
+    max-width: 1200px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    animation: fadeIn 1s ease forwards;
+    backdrop-filter: blur(12px);
+}
+
+/* Header */
+header h1 {
+    font-family: 'Pacifico', cursive;
+    font-size: 3rem;
+    color: var(--highlight-color);
+    text-align: center;
+    margin-bottom: 0.2rem;
+    transition: transform var(--transition-speed);
+    position: relative;
+    display: inline-block;
+}
+
+header h1::after {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 3px;
+    bottom: -5px;
+    left: 0;
+    background-color: var(--highlight-color);
+    transition: width 0.4s ease;
+}
+
+header h1:hover {
+    transform: scale(1.05);
+}
+
+header h1:hover::after {
+    width: 100%;
+}
+
+header p {
+    text-align: center;
+    font-weight: 600;
+    color: #555;
+    font-size: 1.2rem;
+}
+
+/* Main content layout */
+#main-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+}
+
+/* Canvas panel */
+#canvas-container {
+    flex: 1 1 300px;
+    min-width: 280px;
+    background: var(--panel-bg);
+    padding: 1rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px var(--shadow-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform var(--transition-speed);
+    backdrop-filter: blur(12px);
+    animation: float 6s ease-in-out infinite;
+}
+
+#canvas-container:hover {
+    transform: scale(1.03);
+}
+
+#kolamCanvas {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 3px 10px var(--shadow-color);
+    border: 3px solid transparent;
+    animation: glow 4s linear infinite;
+}
+
+/* UI container */
+#ui-container {
+    flex: 1 1 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Control panels */
+.control-panel {
+    background: var(--panel-bg);
+    padding: 1rem 1.5rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px var(--shadow-color);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+    backdrop-filter: blur(12px);
+}
+
+.control-panel:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px var(--shadow-color);
+}
+
+.control-panel h3 {
+    color: var(--highlight-color);
+    margin-bottom: 0.8rem;
+}
+
+/* Buttons */
+button {
+    background: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 12px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all var(--transition-speed), box-shadow 0.2s ease;
+    margin: 0.2rem 0.2rem 0.2rem 0;
+}
+
+button:hover {
+    background: linear-gradient(135deg, var(--highlight-color), var(--primary-color));
+    box-shadow: 0 8px 20px rgba(255, 111, 97, 0.4);
+    transform: translateY(-3px) scale(1.07);
+}
+
+/* Ripple effect */
+button::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: width 0.4s ease, height 0.4s ease, opacity 0.6s ease;
+}
+button:active::after {
+    width: 200%;
+    height: 200%;
+    opacity: 0;
+}
+
+/* Input & Select */
+input[type="file"],
+select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin-bottom: 0.5rem;
+    transition: border-color var(--transition-speed);
+}
+
+input[type="file"]:hover,
+select:hover {
+    border-color: var(--highlight-color);
+}
+
+/* Button & select rows */
+.button-row,
+.select-group,
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Steps list */
+#stepsList-container {
+    background: var(--panel-bg);
+    padding: 1rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px var(--shadow-color);
+    backdrop-filter: blur(12px);
+}
+
+#stepsList li {
+    padding: 0.3rem 0.5rem;
+    margin: 0.2rem 0;
+    border-radius: 5px;
+    transition: background var(--transition-speed), transform var(--transition-speed);
+    cursor: pointer;
+}
+
+#stepsList li:hover {
+    background: var(--accent-color);
+    color: #fff;
+    transform: translateX(5px);
+}
+
+#stepsList li::before {
+    content: "✔";
+    opacity: 0;
+    margin-right: 0.5rem;
+    transition: opacity 0.3s ease;
+    color: var(--highlight-color);
+}
+#stepsList li:hover::before {
+    opacity: 1;
+}
+
+/* API response panel */
+#api-response {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px var(--shadow-color);
+    overflow-x: auto;
+    max-height: 200px;
+    border: 1px solid #eee;
+}
+
+/* AR container overlay */
+#ar-container {
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+    from {opacity: 0; transform: translateY(20px);}
+    to {opacity: 1; transform: translateY(0);}
+}
+
+@keyframes glow {
+    0% { border-color: var(--accent-color); }
+    50% { border-color: var(--highlight-color); }
+    100% { border-color: var(--accent-color); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+#api-response pre {
+    white-space: pre-wrap; /* Allows the text to wrap */
+    word-break: break-all; /* Breaks long words/strings if necessary */
+}

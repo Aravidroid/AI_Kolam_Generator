@@ -1,0 +1,9 @@
+Flask
+gunicorn
+numpy
+opencv-python-headless
+torch
+torchvision
+Pillow
+scipy
+rembg

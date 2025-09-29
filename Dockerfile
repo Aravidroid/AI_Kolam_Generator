@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of your application code from the sub-folder
 COPY kolam_ai_app/ .
 # Define the command to run your app
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "app:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT app:app

@@ -6,4 +6,3 @@ torch
 torchvision
 Pillow
 scipy
-rembg

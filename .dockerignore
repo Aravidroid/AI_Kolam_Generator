@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+train.py
+kolam_dataset/
+.git
